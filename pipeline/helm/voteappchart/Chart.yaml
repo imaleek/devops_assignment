@@ -1,6 +1,6 @@
 apiVersion: v2
 name: voteapp
-description: A Helm Chart to Deploy Zone's Services to NIBBS PTSA
+description: A Helm Chart to Deploy a Voting App
 # A chart can be either an 'application' or a 'library' chart.
 #
 # Application charts are a collection of templates that can be packaged into versioned archives

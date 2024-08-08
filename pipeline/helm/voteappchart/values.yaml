@@ -1,8 +1,5 @@
 ---
 #----------------------------------------------general configurations------------------------------------------------
-#------general namespacelist-------------------------------
-namespaceList:
-  - voterapp
 #-------general autoscaling configurations-----------------
 autoscaling:
   enabled: true
@@ -15,6 +12,8 @@ cluster:
   provider: aws  # choose from: local | aws 
   reclaimPolicy: Delete # set to either Retain or Delete
 
+image:
+  repository: "docker"
 #----------------------------------------------application configurations---------------------------------------------
 # db
 db:
