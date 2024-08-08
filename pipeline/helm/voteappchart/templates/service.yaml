@@ -1,0 +1,72 @@
+---
+{{- if .Values.db.enabled  }}
+# db
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "db.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "db.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.db.service.type }}
+  selector:
+    app: {{ include "db.fullname" . }}
+  {{- include "db.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.db.service.ports | toYaml | nindent 2 }}
+{{- end }}
+---
+{{- if .Values.redis.enable }}
+# redis
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "redis.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.redis.service.type }}
+  selector:
+    app: {{ include "redis.fullname" . }}
+  {{- include "redis.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.redis.service.ports | toYaml | nindent 2 }}
+{{- end }}
+---
+{{- if .Values.result.enable }}
+# result
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "result.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "result.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.result.service.type }}
+  selector:
+    app: {{ include "result.fullname" . }}
+  {{- include "result.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.result.service.ports | toYaml | nindent 2 }}
+{{- end }}
+---
+{{- if .Values.vote.enable }}
+# vote
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vote.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "vote.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.vote.service.type }}
+  selector:
+    app: {{ include "vote.fullname" . }}
+  {{- include "vote.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.vote.service.ports | toYaml | nindent 2 }}
+{{- end }}

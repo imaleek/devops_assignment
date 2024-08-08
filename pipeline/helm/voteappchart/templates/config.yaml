@@ -1,0 +1,67 @@
+---
+{{- if .Values.db.enabled }}
+# db
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "db.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "db.labels" . | nindent 4 }}
+data:
+  POSTGRES_USER: {{ .Values.db.config.postgresUser | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "db.fullname" . }}-healthscript
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "db.labels" . | nindent 4 }}
+data:
+  postgress.sh: |
+    #!/bin/bash
+    set -eo pipefail
+
+    host="$(hostname -i || echo '127.0.0.1')"
+    user="${POSTGRES_USER:-postgres}"
+    db="${POSTGRES_DB:-$POSTGRES_USER}"
+    export PGPASSWORD="${POSTGRES_PASSWORD:-}"
+
+    args=(
+    	# force postgres to not use the local unix socket (test "external" connectibility)
+    	--host "$host"
+    	--username "$user"
+    	--dbname "$db"
+    	--quiet --no-align --tuples-only
+    )
+
+    if select="$(echo 'SELECT 1' | psql "${args[@]}")" && [ "$select" = '1' ]; then
+    	exit 0
+    fi
+
+    exit 1
+{{- end }}
+---
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis.fullname" . }}-healthscript
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "redis.labels" . | nindent 4 }}
+data:
+  redis.sh: |
+    #!/bin/sh
+    set -eo pipefail
+    
+    host="$(hostname -i || echo '127.0.0.1')"
+    
+    if ping="$(redis-cli -h "$host" ping)" && [ "$ping" = 'PONG' ]; then
+    	exit 0
+    fi
+    
+    exit 1
+
+{{- end }}

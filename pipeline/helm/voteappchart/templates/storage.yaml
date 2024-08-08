@@ -1,0 +1,69 @@
+{{- else if eq .Values.cluster.provider "aws" }}
+---
+{{- if .Values.db.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "db.fullname" . }}-storage
+  namespace: {{ .Release.Namespace }}
+provisioner: {{ .Values.db.storage.aws.provisioner }}
+reclaimPolicy: {{ .Values.cluster.reclaimPolicy }}
+allowVolumeExpansion: true
+parameters:
+  type: {{ .Values.db.storage.aws.parameters.type }}
+  fsType: {{ .Values.db.storage.aws.parameters.fsType }}
+{{- end }}
+---
+{{- if .Values.redis.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "redis.fullname" . }}-storage
+  namespace: {{ .Release.Namespace }}
+provisioner: {{ .Values.redis.storage.aws.provisioner }}
+reclaimPolicy: {{ .Values.cluster.reclaimPolicy }}
+allowVolumeExpansion: true
+parameters:
+  type: {{ .Values.redis.storage.aws.parameters.type }}
+  fsType: {{ .Values.redis.storage.aws.parameters.fsType }}
+{{- end }}
+{{- else }}
+---
+{{- if .Values.db.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "db.fullname" . }}-storage
+  namespace: {{ .Release.Namespace }}
+  labels:
+    type: local
+spec:
+  persistentVolumeReclaimPolicy: {{ .Values.cluster.reclaimPolicy }}
+  storageClassName: {{ include "db.fullname" . }}-storage
+  capacity:
+    storage: "{{ .Values.db.storage.sizeLimit }}"
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp/{{ include "db.fullname" . }}"
+{{- end }}
+---
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "redis.fullname" . }}-storage
+  namespace: {{ .Release.Namespace }}
+  labels:
+    type: local
+spec:
+  persistentVolumeReclaimPolicy: {{ .Values.cluster.reclaimPolicy }}
+  storageClassName: {{ include "redis.fullname" . }}-storage
+  capacity:
+    storage: "{{ .Values.redis.storage.sizeLimit }}"
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/tmp/{{ include "redis.fullname" . }}"
+{{- end }}
+{{- end }}

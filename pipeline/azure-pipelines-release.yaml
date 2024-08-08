@@ -1,0 +1,178 @@
+trigger:
+  branches:
+    include:
+      - release/*
+
+variables:
+  tag: $(Build.BuildId)-$(Build.SourceVersion)
+  containerRegistryServiceConnection: 'Docker.Registry.Service.Connection.To.ECR'
+  wizcliUrl: 'https://wizcli.app.wiz.io/latest/wizcli-linux-amd64'
+  resultRepository: result
+  voteRepository: vote
+  workerRepository: worker
+
+stages:
+  - stage: Build
+    displayName: Build Stage
+    pool:
+      vmImage: 'ubuntu-latest'
+    jobs:
+      - job: Build
+        displayName: Build and Push Docker Images
+        steps:
+          - checkout: self
+            clean: true
+            fetchTags: true
+
+          - task: Docker@2
+            displayName: Build and Push Result Image
+            inputs:
+              containerRegistry: $(containerRegistryServiceConnection)
+              repository: $(resultRepository)
+              command: 'buildAndPush'
+              Dockerfile: './result/Dockerfile'
+              buildContext: './result'
+              tags: '$(tag)'
+
+          - task: Docker@2
+            displayName: Build and Push Vote Image
+            inputs:
+              containerRegistry: $(containerRegistryServiceConnection)
+              repository: $(voteRepository)
+              command: 'buildAndPush'
+              Dockerfile: './vote/Dockerfile'
+              buildContext: './vote'
+              tags: '$(tag)'
+
+          - task: Docker@2
+            displayName: Build and Push Worker Image
+            inputs:
+              containerRegistry: $(containerRegistryServiceConnection)
+              repository: $(workerRepository)
+              command: 'buildAndPush'
+              Dockerfile: './worker/Dockerfile'
+              buildContext: './worker'
+              tags: '$(tag)'
+
+          - task: CmdLine@2
+            displayName: Download and Authenticate WizCLI
+            inputs:
+              script: |
+                echo "Downloading WizCLI..."
+                sudo curl -o /usr/bin/wizcli $(wizcliUrl)
+                sudo chmod +x /usr/bin/wizcli
+                /usr/bin/wizcli auth --id $(WIZ_CLIENT_ID) --secret $(WIZ_CLIENT_SECRET)
+
+          - task: CmdLine@2
+            displayName: Scan Docker Images with WizCLI
+            inputs:
+              script: |
+                /usr/bin/wizcli docker scan --image '$(containerRegistryServiceConnection)/$(resultRepository):$(tag)';
+                /usr/bin/wizcli docker scan --image '$(containerRegistryServiceConnection)/$(voteRepository):$(tag)';
+                /usr/bin/wizcli docker scan --image '$(containerRegistryServiceConnection)/$(workerRepository):$(tag)';
+                if [[ $? -ne 0 ]]; then
+                  echo "##vso[task.logissue type=error] Wiz Scan failed"
+                  exit 1;
+                fi
+
+          - task: CmdLine@2
+            displayName: Variable Substitution in Helm Value Files
+            inputs:
+              script: |
+                echo "Updating Helm values with tag: $(tag)";
+                find ./helm -type f -name "values.yaml" -exec sed -i 's/#buildTag/$(tag)/g' {} \;
+
+          - task: CopyFiles@2
+            displayName: Copy Helm Charts to Artifact Staging Directory
+            inputs:
+              SourceFolder: '$(System.DefaultWorkingDirectory)/helm'
+              Contents: '**'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+              Overwrite: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish Helm Chart Artifacts
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'helmchart'
+              publishLocation: 'Container'
+
+  - stage: Dev
+    displayName: Dev Deployment
+    dependsOn: Build
+    jobs:
+      - deployment: DeployToDev
+        displayName: Deploy to Dev
+        environment: 'dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: HelmDeploy@0
+                  displayName: Deploy Helm Chart to Dev
+                  inputs:
+                    command: upgrade
+                    chartPath: '$(Pipeline.Workspace)/helm/voteappchart'
+                    releaseName: 'voteapp'
+                    install: true
+                    arguments: '--debug'
+
+  - stage: QA
+    displayName: QA Deployment
+    dependsOn: Dev
+    jobs:
+      - deployment: DeployToQA
+        displayName: Deploy to QA
+        environment: 'qa'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: HelmDeploy@0
+                  displayName: Deploy Helm Chart to QA
+                  inputs:
+                    command: upgrade
+                    chartPath: '$(Pipeline.Workspace)/helm/voteappchart'
+                    releaseName: 'voteapp'
+                    install: true
+                    arguments: '--debug'
+
+  - stage: Staging
+    displayName: Staging Deployment
+    dependsOn: QA
+    jobs:
+      - deployment: DeployToStaging
+        displayName: Deploy to Staging
+        environment: 'staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: HelmDeploy@0
+                  displayName: Deploy Helm Chart to Staging
+                  inputs:
+                    command: upgrade
+                    chartPath: '$(Pipeline.Workspace)/helm/voteappchart'
+                    releaseName: 'voteapp'
+                    install: true
+                    arguments: '--debug'
+
+  - stage: Production
+    displayName: Production Deployment
+    dependsOn: Staging
+    jobs:
+      - deployment: DeployToProduction
+        displayName: Deploy to Production
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: HelmDeploy@0
+                  displayName: Deploy Helm Chart to Production
+                  inputs:
+                    command: upgrade
+                    chartPath: '$(Pipeline.Workspace)/helm/voteappchart'
+                    releaseName: 'voteapp'
+                    install: true
+                    arguments: '--debug'

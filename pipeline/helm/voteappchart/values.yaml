@@ -1,0 +1,268 @@
+---
+#----------------------------------------------general configurations------------------------------------------------
+#------general namespacelist-------------------------------
+namespaceList:
+  - voterapp
+#-------general autoscaling configurations-----------------
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: #80
+
+cluster:
+  provider: aws  # choose from: local | aws 
+  reclaimPolicy: Delete # set to either Retain or Delete
+
+#----------------------------------------------application configurations---------------------------------------------
+# db
+db:
+  enabled: true
+  db:
+    image:
+      name: postgres
+      tag: 15-apline
+    imagePullPolicy: IfNotPresent
+    containerPort: 5432
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    probe:
+      enableLivenessProbe: false
+      enableReadinessProbe: false
+    livenessProbe:
+      exec:
+        command:
+          - /healthchecks/postgres.sh
+      failureThreshold: 5
+      initialDelaySeconds: 60
+      periodSeconds: 60
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      exec:
+        command:
+          - /healthchecks/postgres.sh
+      failureThreshold: 5
+      initialDelaySeconds: 70
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 2
+  replicas: 1
+  kubernetesClusterDomain: cluster.local
+  config:
+    postgresUser: postgres
+  secret:
+    postgresPassword: postgres
+  storage:
+    sizeLimit: "20Gi"
+    pvcSizeLimit: "20Gi"
+    reclaimPolicy: "Delete"
+    aws:
+      provisioner: kubernetes.io/aws-ebs
+      parameters:
+        type: gp3
+        fsType: ext4 
+  service:
+    ports:
+      - name: db-service
+        port: 5432
+        protocol: TCP
+        targetPort: 5432
+    type: ClusterIP
+
+# redis
+redis:
+  enabled: true
+  redis:
+    image:
+      name: redis
+      tag: alpine
+    imagePullPolicy: IfNotPresent
+    containerPort: 6379
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    probe:
+      enableLivenessProbe: false
+      enableReadinessProbe: false
+    livenessProbe:
+      exec:
+        command:
+          - /healthchecks/redis.sh
+      failureThreshold: 5
+      initialDelaySeconds: 60
+      periodSeconds: 60
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      exec:
+        command:
+          - /healthchecks/redis.sh
+      failureThreshold: 5
+      initialDelaySeconds: 70
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 2
+  replicas: 1
+  kubernetesClusterDomain: cluster.local
+  storage:
+    sizeLimit: "20Gi"
+    pvcSizeLimit: "20Gi"
+    reclaimPolicy: "Delete"
+    aws:
+      provisioner: kubernetes.io/aws-ebs
+      parameters:
+        type: gp3
+        fsType: ext4 
+  service:
+    ports:
+    - name: redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+    type: ClusterIP
+
+# result
+result:
+  enabled: true
+  autoscaling:
+    enabled: false
+  result:
+    image:
+      name: result
+      tag: #buildTag
+    imagePullPolicy: IfNotPresent
+    containerPort: 80
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    probe:
+      enableLivenessProbe: false
+      enableReadinessProbe: false
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      failureThreshold: 5
+      initialDelaySeconds: 60
+      periodSeconds: 60
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      failureThreshold: 5
+      initialDelaySeconds: 70
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 2
+  replicas: 1
+  waitForDb:
+    image:
+      name: busybox
+      tag: "1.0"
+  kubernetesClusterDomain: cluster.local
+  service:
+    ports:
+    - name: result
+      port: 5001
+      protocol: TCP
+      targetPort: 80
+    type: ClusterIP
+
+# vote
+vote:
+  enabled: true
+  autoscaling:
+    enabled: false
+  vote:
+    image:
+      name: vote
+      tag: #buildTag
+    imagePullPolicy: IfNotPresent
+    containerPort: 80
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    probe:
+      enableLivenessProbe: false
+      enableReadinessProbe: false
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      failureThreshold: 5
+      initialDelaySeconds: 60
+      periodSeconds: 60
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      failureThreshold: 5
+      initialDelaySeconds: 70
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 2
+  replicas: 1
+  waitForRedis:
+    image:
+      name: busybox
+      tag: "1.0"
+  kubernetesClusterDomain: cluster.local
+  service:
+    ports:
+    - name: vote
+      port: 5000
+      protocol: TCP
+      targetPort: 80
+    type: ClusterIP
+
+# worker
+worker:
+  enabled: true
+  autoscaling:
+    enabled: false
+  worker:
+    image:
+      name: worker
+      tag: #buildTag
+    imagePullPolicy: IfNotPresent
+    containerPort: 80
+    resources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  replicas: 1
+  waitForDb:
+    image:
+      name: busybox
+      tag: "1.0"
+  waitForRedis:
+    image:
+      name: busybox
+      tag: "1.0"
+  kubernetesClusterDomain: cluster.local

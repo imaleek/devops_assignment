@@ -1,0 +1,146 @@
+---
+{{- if .Values.db.enabled  }}
+# db
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "db.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "db.fullname" . }}
+  {{- include "db.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.db.replicas }}
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ include "db.fullname" . }}
+    {{- include "db.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "db.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "db.fullname" . }}
+      {{- include "db.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - env:
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.db.kubernetesClusterDomain }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "db.fullname" . }}-config
+        - secretRef:
+            name: {{ include "db.fullname" . }}-secret
+        image: {{ .Values.image.repository }}/{{ .Values.db.db.image.name }}:{{ .Values.db.db.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.db.db.imagePullPolicy }}
+        name: db
+        ports:
+        - containerPort:  {{ .Values.db.db.containerPort }}
+        resources: {{- toYaml .Values.db.db.resources | nindent 10 }}
+        {{-  if .Values.db.db.probe.enableLivenessProbe }}
+        livenessProbe: {{- toYaml .Values.db.db.livenessProbe | nindent 10 }}
+        {{- end }}
+        {{- if .Values.db.db.probe.enableReadinessProbe }}
+        readinessProbe: {{- toYaml .Values.db.db.readinessProbe | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - name: health-script
+          mountPath: /healthchecks/postgress.sh
+          subPath: postgress.sh
+        - mountPath: /var/lib/postgresql/data
+          name: db-data
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      volumes:
+      - name: health-script
+        configMap:
+          name: {{ include "db.fullname" . }}-healthscript
+          items:
+            - key: postgress.sh
+              path: postgress.sh
+  volumeClaimTemplates:
+  - metadata:
+      name: db-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ include "db.fullname" . }}-storage
+      resources:
+        requests:
+          storage: "{{ .Values.db.storage.pvcSizeLimit }}"          
+{{- end }}
+---
+{{- if .Values.redis.enabled  }}
+# redis
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "redis.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "redis.fullname" . }}
+  {{- include "redis.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.redis.replicas }}
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ include "redis.fullname" . }}
+    {{- include "redis.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "redis.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "redis.fullname" . }}
+      {{- include "redis.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - env:
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.redis.kubernetesClusterDomain }}
+        image: {{ .Values.image.repository }}/{{ .Values.redis.redis.image.name }}:{{ .Values.redis.redis.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.redis.redis.imagePullPolicy }}
+        name: redis
+        ports:
+        - containerPort:  {{ .Values.redis.redis.containerPort }}
+        resources: {{- toYaml .Values.redis.redis.resources | nindent 10 }}
+        {{-  if .Values.redis.redis.probe.enableLivenessProbe }}
+        livenessProbe: {{- toYaml .Values.redis.redis.livenessProbe | nindent 10 }}
+        {{- end }}
+        {{- if .Values.redis.redis.probe.enableReadinessProbe }}
+        readinessProbe: {{- toYaml .Values.redis.redis.readinessProbe | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /data
+          name: redis-data
+        - name: health-script
+          mountPath: /healthchecks/redis.sh
+          subPath: redis.sh
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      volumes:
+      - name: health-script
+        configMap:
+          name: {{ include "redis.fullname" . }}-healthscript
+          items:
+            - key: redis.sh
+              path: redis.sh
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ include "redis.fullname" . }}-storage
+      resources:
+        requests:
+          storage: "{{ .Values.redis.storage.pvcSizeLimit }}"          
+{{- end }}
+---
